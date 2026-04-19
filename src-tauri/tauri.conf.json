@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; connect-src 'self' http://localhost:8080 ws://localhost:8080 https:; font-src 'self' data: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
     }
   },
   "bundle": {

@@ -69,6 +69,10 @@ export interface EngineAvailability {
   label: string;
   available: boolean;
   notes?: string;
+  supportsBatch?: boolean;
+  supportsPasswordProtectedFiles?: boolean;
+  supportsOcr?: boolean;
+  requiresExternalBinary?: boolean;
 }
 
 export interface ToolExecutionRequest {

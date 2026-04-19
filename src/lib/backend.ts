@@ -5,6 +5,7 @@ import type {
   ToolExecutionRequest,
   ToolExecutionResult,
   ToolOptions,
+  JobRecord,
 } from "@/types/tools";
 
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -82,6 +83,22 @@ export async function openOutputPath(path: string): Promise<void> {
   }
 
   await invoke<void>("open_output_path", { path });
+}
+
+export async function listPersistedJobs(): Promise<JobRecord[]> {
+  const invoke = getInvoke();
+  if (!invoke) return [];
+  try {
+    return await invoke<JobRecord[]>("list_persisted_jobs");
+  } catch {
+    return [];
+  }
+}
+
+export async function cleanupTmp(maxAgeSeconds?: number): Promise<void> {
+  const invoke = getInvoke();
+  if (!invoke) return;
+  await invoke<void>("cleanup_tmp", { maxAgeSeconds });
 }
 
 async function runBrowserFallback(input: {
