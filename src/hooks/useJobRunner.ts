@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { runToolJob } from "@/lib/backend";
+import { redactJobOptionsForHistory } from "@/lib/jobOptions";
 import { useJobStore } from "@/stores/useJobStore";
-import type { ToolDefinition, ToolExecutionResult, ToolOptions } from "@/types/tools";
+import { useSettings } from "@/providers/SettingsProvider";
+import type {
+  SelectedInputFile,
+  ToolCapability,
+  ToolDefinition,
+  ToolExecutionResult,
+  ToolOptions,
+} from "@/types/tools";
 
 interface RunJobInput {
   tool: ToolDefinition;
-  files: File[];
+  capability?: ToolCapability;
+  files: SelectedInputFile[];
   options: ToolOptions;
 }
 
 export function useJobRunner() {
   const [isRunning, setIsRunning] = useState(false);
   const [lastJobId, setLastJobId] = useState<string | null>(null);
+  const { outputDirectory } = useSettings();
 
   const enqueueJob = useJobStore((state) => state.enqueueJob);
-  const setJobProgress = useJobStore((state) => state.setJobProgress);
   const setJobOutputs = useJobStore((state) => state.setJobOutputs);
   const updateJobStatus = useJobStore((state) => state.updateJobStatus);
 
@@ -30,7 +39,7 @@ export function useJobRunner() {
       progress: 0,
       inputFiles: input.files.map((file) => file.name),
       outputFiles: [],
-      options: input.options,
+      options: redactJobOptionsForHistory(input.options, input.capability?.sensitiveOptions ?? []),
       createdAt: now,
       updatedAt: now,
     });
@@ -44,14 +53,19 @@ export function useJobRunner() {
         tool: input.tool,
         files: input.files,
         options: input.options,
-        onProgress: (progress) => setJobProgress(jobId, progress),
+        outputDirectory,
       });
 
       if (result.ok) {
         setJobOutputs(jobId, result.outputPaths);
-        updateJobStatus(jobId, "completed");
+        updateJobStatus(jobId, "completed", undefined, result.warning);
       } else {
-        updateJobStatus(jobId, "failed", result.error ?? "Unknown job failure.");
+        updateJobStatus(
+          jobId,
+          "failed",
+          result.error ?? "Unknown job failure.",
+          result.warning,
+        );
       }
 
       return { jobId, result };

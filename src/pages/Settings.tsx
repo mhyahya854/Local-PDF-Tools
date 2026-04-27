@@ -5,7 +5,7 @@ import { useEngines } from "@/providers/EngineProvider";
 
 const Settings = () => {
   const { theme, setTheme, outputDirectory, setOutputDirectory } = useSettings();
-  const { engines, isDesktop, loading } = useEngines();
+  const { engines, isDesktop, loading, diagnostics } = useEngines();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -37,7 +37,7 @@ const Settings = () => {
         <section className="mb-6 rounded-xl border bg-card p-5">
           <h2 className="mb-3 text-base font-semibold text-foreground">Output Path</h2>
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="output-directory">
-            Default output directory
+            Workspace output subdirectory
           </label>
           <input
             id="output-directory"
@@ -47,14 +47,17 @@ const Settings = () => {
             placeholder="outputs"
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            In desktop mode, backend commands can resolve this to an absolute local path.
+            Desktop jobs write under the app workspace using this relative path, such as{" "}
+            <span className="font-mono">outputs</span> or <span className="font-mono">exports/2026</span>.
           </p>
         </section>
 
         <section className="rounded-xl border bg-card p-5">
           <h2 className="mb-3 text-base font-semibold text-foreground">Engine Availability</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Runtime: {isDesktop ? "Desktop (Tauri)" : "Browser preview"}
+            Runtime: {isDesktop ? "Desktop (Tauri)" : "Browser preview"} | Invoke:{" "}
+            {diagnostics.invokeAvailable ? "available" : "unavailable"} | Engine probe:{" "}
+            {diagnostics.engineProbeFetched ? "fetched" : "not fetched"}
           </p>
 
           {loading ? (
@@ -66,15 +69,24 @@ const Settings = () => {
                   key={engine.key}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2"
                 >
-                  <span className="text-sm font-medium text-foreground">{engine.label}</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {engine.label}
+                    {engine.notes?.length ? (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        {engine.notes[0]}
+                      </span>
+                    ) : null}
+                  </span>
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      engine.available
+                      engine.runnable
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                        : "bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
+                        : engine.installed
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                          : "bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
                     }`}
                   >
-                    {engine.available ? "Available" : "Unavailable"}
+                    {engine.runnable ? "Runnable" : engine.installed ? "Installed, not integrated" : "Missing"}
                   </span>
                 </li>
               ))}

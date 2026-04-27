@@ -1,6 +1,7 @@
 import { Label } from "@/components/ui/label";
+import type { ToolOptions } from "@/types/tools";
 
-export interface CompressPdfOptionsValue {
+export interface CompressPdfOptionsValue extends ToolOptions {
   quality: "low" | "medium" | "high";
 }
 

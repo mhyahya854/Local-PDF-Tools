@@ -10,6 +10,8 @@ node_modules
 dist
 dist-ssr
 *.local
+src-tauri/target
+release
 
 .vscode/*
 !.vscode/extensions.json

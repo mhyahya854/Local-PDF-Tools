@@ -1,5 +1,4 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Link } from "react-router-dom";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -38,12 +37,12 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
               >
                 Reload App
               </button>
-              <Link
-                to="/tools"
+              <button
+                onClick={() => window.location.assign("/")}
                 className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground"
               >
-                Open Tools
-              </Link>
+                Back to Home
+              </button>
             </div>
           </div>
         </div>

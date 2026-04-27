@@ -1,7 +1,8 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { ToolOptions } from "@/types/tools";
 
-export interface SplitPdfOptionsValue {
+export interface SplitPdfOptionsValue extends ToolOptions {
   mode: "range" | "every";
   ranges: string;
   everyNPages: number;

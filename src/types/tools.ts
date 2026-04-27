@@ -19,16 +19,29 @@ export type ToolOptionSchemaKey =
   | "none"
   | "mergePdfOptions"
   | "splitPdfOptions"
+  | "rotatePdfOptions"
   | "compressPdfOptions"
-  | "imageToPdfOptions"
   | "watermarkOptions"
   | "protectPdfOptions"
-  | "pageNumberOptions"
-  | "ocrPdfOptions"
-  | "htmlToPdfOptions"
-  | "cropPdfOptions";
+  | "unlockPdfOptions";
 
 export type ToolOptions = Record<string, unknown>;
+
+export interface SelectedInputFile {
+  id: string;
+  name: string;
+  source: "browser" | "desktop";
+  sizeBytes?: number;
+  lastModified?: number;
+  path?: string;
+  file?: File;
+}
+
+export interface ToolExecutionInputFile {
+  name: string;
+  path?: string;
+  sizeBytes?: number;
+}
 
 export interface ToolDefinition {
   id: string;
@@ -67,20 +80,49 @@ export interface OutputFormatDefinition {
 export interface EngineAvailability {
   key: PdfEngine;
   label: string;
+  installed: boolean;
+  implemented: boolean;
+  runnable: boolean;
   available: boolean;
-  notes?: string;
+  notes?: string[];
   supportsBatch?: boolean;
   supportsPasswordProtectedFiles?: boolean;
   supportsOcr?: boolean;
   requiresExternalBinary?: boolean;
 }
 
+export interface RuntimeDiagnostics {
+  runtime: "desktop" | "web";
+  invokeAvailable: boolean;
+  dialogPluginExpected: boolean;
+  engineProbeFetched: boolean;
+}
+
+export interface ToolCapability {
+  toolId: string;
+  engineKey: PdfEngine;
+  implemented: boolean;
+  desktopOnly: boolean;
+  browserPreview: boolean;
+  runnable: boolean;
+  inputExtensions: string[];
+  outputExtension: OutputFormat;
+  minFiles: number;
+  maxFiles?: number;
+  supportsBatch: boolean;
+  supportedOptions: string[];
+  sensitiveOptions: string[];
+  outputStrategy: string;
+  notes: string[];
+}
+
 export interface ToolExecutionRequest {
   jobId: string;
   toolId: string;
-  fileNames: string[];
+  inputFiles: ToolExecutionInputFile[];
   options: ToolOptions;
   outputExtension: OutputFormat;
+  outputDirectory?: string;
 }
 
 export interface ToolExecutionResult {
@@ -90,7 +132,7 @@ export interface ToolExecutionResult {
   warning?: string;
 }
 
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type JobStatus = "running" | "completed" | "failed";
 
 export interface JobRecord {
   id: string;
@@ -104,4 +146,5 @@ export interface JobRecord {
   createdAt: string;
   updatedAt: string;
   error?: string;
+  warning?: string;
 }

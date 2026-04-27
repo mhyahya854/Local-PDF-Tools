@@ -1,10 +1,14 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::errors::AppResult;
+use crate::errors::{AppError, AppResult};
 
-pub fn run(_tool_id: &str, _file_names: &[String], _output_file: &Path, _options: Option<&Value>) -> AppResult<()> {
-    // Placeholder: HTML-to-PDF engine will be implemented later.
-    Ok(())
+pub fn run(
+    tool_id: &str,
+    _file_names: &[String],
+    _output_file: &Path,
+    _options: Option<&Value>,
+) -> AppResult<Vec<PathBuf>> {
+    Err(AppError::EngineNotImplemented(tool_id.to_string()))
 }

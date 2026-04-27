@@ -5,6 +5,9 @@ import MergePdfOptions, {
 import SplitPdfOptions, {
   type SplitPdfOptionsValue,
 } from "@/components/tools/forms/SplitPdfOptions";
+import RotatePdfOptions, {
+  type RotatePdfOptionsValue,
+} from "@/components/tools/forms/RotatePdfOptions";
 import CompressPdfOptions, {
   type CompressPdfOptionsValue,
 } from "@/components/tools/forms/CompressPdfOptions";
@@ -14,6 +17,9 @@ import WatermarkOptions, {
 import ProtectPdfOptions, {
   type ProtectPdfOptionsValue,
 } from "@/components/tools/forms/ProtectPdfOptions";
+import UnlockPdfOptions, {
+  type UnlockPdfOptionsValue,
+} from "@/components/tools/forms/UnlockPdfOptions";
 
 interface ToolOptionsRendererProps {
   tool: ToolDefinition;
@@ -26,39 +32,55 @@ export default function ToolOptionsRenderer({ tool, value, onChange }: ToolOptio
     return <p className="text-sm text-muted-foreground">No additional options for this tool.</p>;
   }
 
+  const coerce = <T extends ToolOptions,>(raw: ToolOptions): T => raw as unknown as T;
+
   switch (tool.optionSchemaKey) {
     case "mergePdfOptions":
       return (
         <MergePdfOptions
-          value={value as MergePdfOptionsValue}
+          value={coerce<MergePdfOptionsValue>(value)}
           onChange={(next) => onChange(next)}
         />
       );
     case "splitPdfOptions":
       return (
         <SplitPdfOptions
-          value={value as SplitPdfOptionsValue}
+          value={coerce<SplitPdfOptionsValue>(value)}
+          onChange={(next) => onChange(next)}
+        />
+      );
+    case "rotatePdfOptions":
+      return (
+        <RotatePdfOptions
+          value={coerce<RotatePdfOptionsValue>(value)}
           onChange={(next) => onChange(next)}
         />
       );
     case "compressPdfOptions":
       return (
         <CompressPdfOptions
-          value={value as CompressPdfOptionsValue}
+          value={coerce<CompressPdfOptionsValue>(value)}
           onChange={(next) => onChange(next)}
         />
       );
     case "watermarkOptions":
       return (
         <WatermarkOptions
-          value={value as WatermarkOptionsValue}
+          value={coerce<WatermarkOptionsValue>(value)}
           onChange={(next) => onChange(next)}
         />
       );
     case "protectPdfOptions":
       return (
         <ProtectPdfOptions
-          value={value as ProtectPdfOptionsValue}
+          value={coerce<ProtectPdfOptionsValue>(value)}
+          onChange={(next) => onChange(next)}
+        />
+      );
+    case "unlockPdfOptions":
+      return (
+        <UnlockPdfOptions
+          value={coerce<UnlockPdfOptionsValue>(value)}
           onChange={(next) => onChange(next)}
         />
       );

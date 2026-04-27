@@ -1,31 +1,38 @@
 import { Link, useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, icons } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { categoryBgClasses, categoryTextClasses } from "@/data/pdfTools";
 import { useTool } from "@/hooks/useTool";
 import { useToast } from "@/hooks/use-toast";
+import { mergeSelectedFiles } from "@/lib/inputFiles";
 import { validateFilesForTool } from "@/lib/fileValidation";
+import { validateToolOptions } from "@/lib/toolOptionValidation";
 import { getToolStatusLabel, isToolRunnable } from "@/lib/toolRegistry";
 import { useJobRunner } from "@/hooks/useJobRunner";
 import { useJobStore } from "@/stores/useJobStore";
 import { openOutputPath } from "@/lib/backend";
+import { useEngines, useToolCapability } from "@/providers/EngineProvider";
+import { getToolIcon } from "@/lib/toolIcons";
 import ToolOptionsRenderer from "@/components/tools/ToolOptionsRenderer";
 import FileDropzone from "@/components/upload/FileDropzone";
 import FileList from "@/components/upload/FileList";
 import JobProgressCard from "@/components/jobs/JobProgressCard";
 import OutputResults from "@/components/jobs/OutputResults";
+import type { SelectedInputFile } from "@/types/tools";
 
 const ToolPage = () => {
   const { toolId } = useParams();
   const { tool, defaultOptions } = useTool(toolId);
   const { toast } = useToast();
   const { runJob, isRunning, lastJobId } = useJobRunner();
+  const { isDesktop, engines, loading: enginesLoading } = useEngines();
+  const capability = useToolCapability(toolId);
 
   const jobs = useJobStore((state) => state.jobs);
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<SelectedInputFile[]>([]);
   const [options, setOptions] = useState(defaultOptions);
   const [outputs, setOutputs] = useState<string[]>([]);
 
@@ -42,9 +49,15 @@ const ToolPage = () => {
     }
     return validateFilesForTool(files, tool);
   }, [files, tool]);
+  const optionValidation = useMemo(() => {
+    if (!tool) {
+      return null;
+    }
+    return validateToolOptions(tool, options);
+  }, [options, tool]);
 
-  function handleAddFiles(next: File[]) {
-    setFiles((prev) => [...prev, ...next]);
+  function handleAddFiles(next: SelectedInputFile[]) {
+    setFiles((prev) => mergeSelectedFiles(prev, next, tool?.maxFiles));
   }
 
   function removeFile(index: number) {
@@ -69,16 +82,53 @@ const ToolPage = () => {
       return;
     }
 
-    if (!validation.isValid) {
+    if (enginesLoading) {
       toast({
-        title: "Fix file validation errors",
-        description: "Check unsupported files, count limits, and required inputs before running.",
+        title: "Engine check in progress",
+        description: "Wait for local engine availability checks to complete.",
+      });
+      return;
+    }
+
+    if (!capability?.implemented) {
+      toast({
+        title: "Tool not runnable",
+        description: "This tool is not implemented in this release.",
+      });
+      return;
+    }
+
+    if (!isDesktop) {
+      toast({
+        title: "Desktop runtime required",
+        description: "Web preview mode cannot execute local PDF processing jobs.",
+      });
+      return;
+    }
+
+    const requiredEngine = engines.find((engine) => engine.key === tool.engine);
+    if (!capability.runnable) {
+      toast({
+        title: "Engine unavailable",
+        description:
+          capability.notes[0] ??
+          requiredEngine?.notes?.[0] ??
+          `Required engine "${tool.engine}" is unavailable on this machine.`,
+      });
+      return;
+    }
+
+    if (!validation.isValid || !optionValidation?.isValid) {
+      toast({
+        title: "Fix validation errors",
+        description: "Check the selected files and tool options before running.",
       });
       return;
     }
 
     const { result } = await runJob({
       tool,
+      capability,
       files: validation.acceptedFiles,
       options,
     });
@@ -112,10 +162,22 @@ const ToolPage = () => {
     );
   }
 
-  const IconComponent = icons[tool.icon as keyof typeof icons];
+  const IconComponent = getToolIcon(tool.icon);
   const bgClass = categoryBgClasses[tool.category];
   const textClass = categoryTextClasses[tool.category];
-  const runnable = isToolRunnable(tool);
+  const statusRunnable = isToolRunnable(tool);
+  const requiredEngine = engines.find((engine) => engine.key === tool.engine);
+  const capabilityKnown = tool.status === "planned" || !enginesLoading;
+  const implemented = capabilityKnown ? Boolean(capability?.implemented) : tool.status !== "planned";
+  const browserPreviewSupported = Boolean(capability?.browserPreview);
+  const canConfigureFiles = capabilityKnown
+    ? implemented && (isDesktop || browserPreviewSupported)
+    : isDesktop || tool.supportsPreview;
+  const runnable = Boolean(
+    capabilityKnown && statusRunnable && isDesktop && capability?.runnable && !enginesLoading,
+  );
+  const unavailableReason =
+    capability?.notes[0] ?? requiredEngine?.notes?.[0] ?? `Required engine "${tool.engine}" is unavailable.`;
   const statusLabel = getToolStatusLabel(tool.status);
   const recentJobsForTool = jobs.filter((item) => item.toolId === tool.id).slice(0, 3);
 
@@ -185,7 +247,13 @@ const ToolPage = () => {
               multiple={tool.supportsBatch}
               maxFiles={tool.maxFiles}
               onFilesAdded={handleAddFiles}
-              disabled={!runnable || isRunning}
+              onFileDialogError={(message) =>
+                toast({
+                  title: "Could not open file picker",
+                  description: message,
+                })
+              }
+              disabled={!canConfigureFiles || isRunning}
             />
 
             <div className="mt-4">
@@ -209,6 +277,11 @@ const ToolPage = () => {
                     {file.name}: {reason}
                   </p>
                 ))}
+                {optionValidation?.errors.map((error) => (
+                  <p key={error.code} className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive">
+                    {error.message}
+                  </p>
+                ))}
               </div>
             )}
           </section>
@@ -222,9 +295,30 @@ const ToolPage = () => {
             <div className="rounded-xl border bg-card p-5">
               <h2 className="mb-4 text-base font-semibold text-foreground">3. Run job</h2>
 
-              {!runnable && (
+              {capabilityKnown && !implemented && (
                 <p className="mb-3 rounded-md border border-amber-400/30 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                  This tool is planned and not executable yet.
+                  This tool is not implemented in this release.
+                </p>
+              )}
+
+              {capabilityKnown && implemented && !isDesktop && (
+                <p className="mb-3 rounded-md border border-amber-400/30 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                  {browserPreviewSupported
+                    ? "Web preview shows tool setup only. Desktop runtime is required to execute local PDF processing jobs."
+                    : "Desktop runtime required. This tool cannot be used in web preview mode."}
+                </p>
+              )}
+
+              {implemented && isDesktop && enginesLoading && (
+                <p className="mb-3 rounded-md border border-slate-300/40 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:bg-slate-900/20 dark:text-slate-300">
+                  Checking local engine availability...
+                </p>
+              )}
+
+              {implemented && isDesktop && !enginesLoading && !capability?.runnable && (
+                <p className="mb-3 rounded-md border border-amber-400/30 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                  Required engine "{requiredEngine?.label ?? tool.engine}" is not runnable.
+                  {unavailableReason ? ` ${unavailableReason}` : ""}
                 </p>
               )}
 
@@ -232,7 +326,7 @@ const ToolPage = () => {
                 type="button"
                 className="w-full bg-red-600 text-white hover:bg-red-700"
                 size="lg"
-                disabled={!runnable || isRunning || !validation?.isValid}
+                disabled={!runnable || isRunning || !validation?.isValid || !optionValidation?.isValid}
                 onClick={runCurrentTool}
               >
                 {isRunning ? "Running..." : `Process ${files.length} file${files.length === 1 ? "" : "s"}`}
@@ -251,10 +345,19 @@ const ToolPage = () => {
               <OutputResults
                 outputs={outputs}
                 onOpenOutput={(path) => {
-                  void openOutputPath(path);
+                  void openOutputPath(path).catch((error) => {
+                    toast({
+                      title: "Could not open output",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "The output path could not be opened from this runtime.",
+                    });
+                  });
                 }}
                 onRunAnother={() => {
                   setFiles([]);
+                  setOutputs([]);
                 }}
               />
 

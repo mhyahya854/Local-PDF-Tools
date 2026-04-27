@@ -17,3 +17,4 @@ tauri = { version = "2", features = [] }
 thiserror = "2"
 dirs-next = "2"
 chrono = { version = "0.4", features = ["serde"] }
+tauri-plugin-dialog = "2.7.0"

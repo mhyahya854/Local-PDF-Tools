@@ -1,5 +1,5 @@
 import { getExtension } from "@/lib/utils";
-import type { ToolDefinition } from "@/types/tools";
+import type { SelectedInputFile, ToolDefinition } from "@/types/tools";
 
 export interface FileValidationIssue {
   code: string;
@@ -10,17 +10,17 @@ export interface FileValidationResult {
   isValid: boolean;
   errors: FileValidationIssue[];
   warnings: FileValidationIssue[];
-  acceptedFiles: File[];
-  rejectedFiles: Array<{ file: File; reason: string }>;
+  acceptedFiles: SelectedInputFile[];
+  rejectedFiles: Array<{ file: SelectedInputFile; reason: string }>;
 }
 
 const DEFAULT_MAX_FILE_SIZE_MB = 500;
 
-export function validateFilesForTool(files: File[], tool: ToolDefinition): FileValidationResult {
+export function validateFilesForTool(files: SelectedInputFile[], tool: ToolDefinition): FileValidationResult {
   const errors: FileValidationIssue[] = [];
   const warnings: FileValidationIssue[] = [];
-  const acceptedFiles: File[] = [];
-  const rejectedFiles: Array<{ file: File; reason: string }> = [];
+  const acceptedFiles: SelectedInputFile[] = [];
+  const rejectedFiles: Array<{ file: SelectedInputFile; reason: string }> = [];
 
   if (files.length === 0) {
     errors.push({ code: "NO_FILES", message: "Select at least one file." });
@@ -60,7 +60,15 @@ export function validateFilesForTool(files: File[], tool: ToolDefinition): FileV
       continue;
     }
 
-    if (file.size > maxFileSizeBytes) {
+    if (file.source === "desktop" && !file.path) {
+      rejectedFiles.push({
+        file,
+        reason: "Desktop selections must include a readable local file path.",
+      });
+      continue;
+    }
+
+    if (typeof file.sizeBytes === "number" && file.sizeBytes > maxFileSizeBytes) {
       rejectedFiles.push({
         file,
         reason: `File exceeds the ${tool.maxFileSizeMb ?? DEFAULT_MAX_FILE_SIZE_MB} MB limit for this tool.`,

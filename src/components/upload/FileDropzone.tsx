@@ -1,14 +1,20 @@
 import { useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload } from "lucide-react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { Button } from "@/components/ui/button";
+import { isDesktopRuntime } from "@/lib/backend";
+import { createBrowserSelectedFiles, createDesktopSelectedFiles } from "@/lib/inputFiles";
 import { cn } from "@/lib/utils";
+import type { SelectedInputFile } from "@/types/tools";
 
 interface FileDropzoneProps {
   acceptedExtensions: string[];
   multiple?: boolean;
   maxFiles?: number;
   disabled?: boolean;
-  onFilesAdded: (files: File[]) => void;
+  onFilesAdded: (files: SelectedInputFile[]) => void;
+  onFileDialogError?: (message: string) => void;
 }
 
 const extensionToMime: Record<string, string> = {
@@ -34,7 +40,9 @@ export default function FileDropzone({
   maxFiles,
   disabled,
   onFilesAdded,
+  onFileDialogError,
 }: FileDropzoneProps) {
+  const desktop = isDesktopRuntime();
   const accept = useMemo(() => {
     if (acceptedExtensions.length === 0) {
       return undefined;
@@ -48,12 +56,59 @@ export default function FileDropzone({
   }, [acceptedExtensions]);
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
-    disabled,
+    disabled: disabled || desktop,
     multiple,
     maxFiles,
     accept,
-    onDropAccepted: (files) => onFilesAdded(files),
+    onDropAccepted: (files) => onFilesAdded(createBrowserSelectedFiles(files)),
   });
+
+  async function handleDesktopSelect() {
+    if (disabled) {
+      return;
+    }
+
+    try {
+      const selected = await openDialog({
+        directory: false,
+        multiple,
+        filters: [
+          {
+            name: "Supported files",
+            extensions: acceptedExtensions,
+          },
+        ],
+      });
+
+      if (!selected) {
+        return;
+      }
+
+      onFilesAdded(createDesktopSelectedFiles(selected));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "The native file picker could not be opened in this runtime.";
+      onFileDialogError?.(message);
+    }
+  }
+
+  if (desktop) {
+    return (
+      <div className="upload-dropzone">
+        <Upload className="h-10 w-10 text-muted-foreground" />
+        <h3 className="text-base font-semibold text-foreground">Select local files</h3>
+        <p className="text-sm text-muted-foreground">
+          Desktop mode uses the native file picker so the backend receives the original file paths.
+        </p>
+        <Button type="button" onClick={() => void handleDesktopSelect()} disabled={disabled}>
+          Choose files
+        </Button>
+        <p className="text-sm text-muted-foreground">
+          Accepted: {acceptedExtensions.map((ext) => `.${ext}`).join(", ")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -65,7 +120,7 @@ export default function FileDropzone({
         disabled && "cursor-not-allowed opacity-70",
       )}
     >
-      <input {...getInputProps()} />
+      <input {...getInputProps({ disabled: Boolean(disabled) })} />
       <Upload className="h-10 w-10 text-muted-foreground" />
       <h3 className="text-base font-semibold text-foreground">Drop files here or click to upload</h3>
       <p className="text-sm text-muted-foreground">

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { FileText, Globe, Menu, Moon, Sun, WifiOff, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { NavLink } from "@/components/NavLink";
@@ -16,18 +16,12 @@ const navItems = [
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { theme, setTheme } = useSettings();
+  const { resolvedTheme, setTheme } = useSettings();
   const { isDesktop } = useEngines();
-
-  const dark = useMemo(
-    () =>
-      theme === "dark" ||
-      (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches),
-    [theme],
-  );
+  const isDarkTheme = resolvedTheme === "dark";
 
   function toggleTheme() {
-    setTheme(dark ? "light" : "dark");
+    setTheme(isDarkTheme ? "light" : "dark");
   }
 
   return (
@@ -65,7 +59,7 @@ const Header = () => {
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
           >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDarkTheme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
 
           <Button asChild size="sm" className="bg-red-600 text-white hover:bg-red-700">
@@ -80,12 +74,15 @@ const Header = () => {
             onClick={toggleTheme}
             aria-label="Toggle dark mode"
           >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDarkTheme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-controls="mobile-navigation"
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"}
           >
             {mobileOpen ? <X /> : <Menu />}
           </Button>
@@ -93,7 +90,7 @@ const Header = () => {
       </div>
 
       {mobileOpen && (
-        <div className="border-t bg-card px-4 py-4 md:hidden">
+        <div id="mobile-navigation" className="border-t bg-card px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3">
             {navItems.map((item) => (
               <NavLink

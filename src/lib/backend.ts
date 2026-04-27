@@ -1,6 +1,9 @@
-import { buildOutputDirectory, buildOutputFilename } from "@/lib/outputNames";
+import { toExecutionInputFiles } from "@/lib/inputFiles";
 import type {
   EngineAvailability,
+  RuntimeDiagnostics,
+  SelectedInputFile,
+  ToolCapability,
   ToolDefinition,
   ToolExecutionRequest,
   ToolExecutionResult,
@@ -21,17 +24,102 @@ declare global {
 }
 
 const fallbackEngines: EngineAvailability[] = [
-  { key: "qpdf", label: "qpdf", available: false, notes: "Not detected in browser preview mode." },
-  { key: "libreoffice", label: "LibreOffice Headless", available: false, notes: "Not detected in browser preview mode." },
-  { key: "render", label: "MuPDF/PDFium Render", available: false, notes: "Not detected in browser preview mode." },
-  { key: "ocrmypdf", label: "OCRmyPDF + Tesseract", available: false, notes: "Not detected in browser preview mode." },
-  { key: "html-local", label: "Local HTML Renderer", available: false, notes: "Not detected in browser preview mode." },
-  { key: "watermark-pipeline", label: "Overlay Pipeline", available: false, notes: "Not detected in browser preview mode." },
-  { key: "ghostscript", label: "Ghostscript", available: false, notes: "Not detected in browser preview mode." },
+  { key: "qpdf", label: "qpdf", installed: false, implemented: true, runnable: false, available: false, notes: ["Not detected in browser preview mode."] },
+  { key: "libreoffice", label: "LibreOffice Headless", installed: false, implemented: false, runnable: false, available: false, notes: ["Not detected in browser preview mode."] },
+  { key: "render", label: "MuPDF/PDFium Render", installed: false, implemented: false, runnable: false, available: false, notes: ["Not detected in browser preview mode."] },
+  { key: "ocrmypdf", label: "OCRmyPDF + Tesseract", installed: false, implemented: false, runnable: false, available: false, notes: ["Not detected in browser preview mode."] },
+  { key: "html-local", label: "Local HTML Renderer", installed: true, implemented: false, runnable: false, available: false, notes: ["Browser preview mode cannot execute local engines."] },
+  { key: "watermark-pipeline", label: "Overlay Pipeline", installed: true, implemented: false, runnable: false, available: false, notes: ["Browser preview mode cannot execute local engines."] },
+  { key: "ghostscript", label: "Ghostscript", installed: false, implemented: false, runnable: false, available: false, notes: ["Not detected in browser preview mode."] },
+];
+
+const fallbackToolCapabilities: ToolCapability[] = [
+  {
+    toolId: "merge-pdf",
+    engineKey: "qpdf",
+    implemented: true,
+    desktopOnly: true,
+    browserPreview: true,
+    runnable: false,
+    inputExtensions: ["pdf"],
+    outputExtension: "pdf",
+    minFiles: 2,
+    supportsBatch: true,
+    supportedOptions: ["reverse"],
+    sensitiveOptions: [],
+    outputStrategy: "single-output",
+    notes: ["Desktop runtime and qpdf are required."],
+  },
+  {
+    toolId: "split-pdf",
+    engineKey: "qpdf",
+    implemented: true,
+    desktopOnly: true,
+    browserPreview: true,
+    runnable: false,
+    inputExtensions: ["pdf"],
+    outputExtension: "pdf",
+    minFiles: 1,
+    maxFiles: 1,
+    supportsBatch: false,
+    supportedOptions: ["mode", "ranges", "everyNPages"],
+    sensitiveOptions: [],
+    outputStrategy: "range-or-page-chunks",
+    notes: ["Desktop runtime and qpdf are required."],
+  },
+  {
+    toolId: "rotate-pdf",
+    engineKey: "qpdf",
+    implemented: true,
+    desktopOnly: true,
+    browserPreview: true,
+    runnable: false,
+    inputExtensions: ["pdf"],
+    outputExtension: "pdf",
+    minFiles: 1,
+    supportsBatch: true,
+    supportedOptions: ["angle"],
+    sensitiveOptions: [],
+    outputStrategy: "one-output-per-input",
+    notes: ["Desktop runtime and qpdf are required."],
+  },
+  {
+    toolId: "unlock-pdf",
+    engineKey: "qpdf",
+    implemented: true,
+    desktopOnly: true,
+    browserPreview: false,
+    runnable: false,
+    inputExtensions: ["pdf"],
+    outputExtension: "pdf",
+    minFiles: 1,
+    supportsBatch: true,
+    supportedOptions: ["password"],
+    sensitiveOptions: ["password"],
+    outputStrategy: "one-output-per-input",
+    notes: ["Desktop runtime and qpdf are required."],
+  },
+  {
+    toolId: "protect-pdf",
+    engineKey: "qpdf",
+    implemented: true,
+    desktopOnly: true,
+    browserPreview: false,
+    runnable: false,
+    inputExtensions: ["pdf"],
+    outputExtension: "pdf",
+    minFiles: 1,
+    supportsBatch: true,
+    supportedOptions: ["userPassword", "ownerPassword", "allowPrint", "allowCopy"],
+    sensitiveOptions: ["userPassword", "ownerPassword"],
+    outputStrategy: "one-output-per-input",
+    notes: ["Desktop runtime and qpdf are required."],
+  },
 ];
 
 function getInvoke(): TauriInvoke | undefined {
-  return window.__TAURI__?.core?.invoke;
+  const candidate = window.__TAURI__?.core?.invoke;
+  return typeof candidate === "function" ? candidate : undefined;
 }
 
 export function isDesktopRuntime(): boolean {
@@ -55,23 +143,31 @@ export async function listSupportedEngines(): Promise<EngineAvailability[]> {
 export async function runToolJob(input: {
   jobId: string;
   tool: ToolDefinition;
-  files: File[];
+  files: SelectedInputFile[];
   options: ToolOptions;
-  onProgress?: (value: number) => void;
+  outputDirectory?: string;
 }): Promise<ToolExecutionResult> {
   const invoke = getInvoke();
 
   if (!invoke) {
-    return runBrowserFallback(input);
+    return {
+      ok: false,
+      outputPaths: [],
+      error: "Desktop runtime required. Web preview mode cannot execute local PDF processing jobs.",
+    };
   }
 
   const request: ToolExecutionRequest = {
     jobId: input.jobId,
     toolId: input.tool.id,
-    fileNames: input.files.map((file) => file.name),
+    inputFiles: toExecutionInputFiles(input.files),
     options: input.options,
     outputExtension: input.tool.outputExtension,
   };
+  const trimmedOutputDirectory = input.outputDirectory?.trim();
+  if (trimmedOutputDirectory) {
+    request.outputDirectory = trimmedOutputDirectory;
+  }
 
   return invoke<ToolExecutionResult>("run_tool_job", { request });
 }
@@ -101,39 +197,38 @@ export async function cleanupTmp(maxAgeSeconds?: number): Promise<void> {
   await invoke<void>("cleanup_tmp", { maxAgeSeconds });
 }
 
-async function runBrowserFallback(input: {
-  jobId: string;
-  tool: ToolDefinition;
-  files: File[];
-  options: ToolOptions;
-  onProgress?: (value: number) => void;
-}): Promise<ToolExecutionResult> {
-  for (const step of [15, 35, 60, 80, 100]) {
-    input.onProgress?.(step);
-    await wait(120);
+export async function listToolCapabilities(): Promise<ToolCapability[]> {
+  const invoke = getInvoke();
+  if (!invoke) {
+    return fallbackToolCapabilities;
   }
 
-  const outputDirectory = buildOutputDirectory(input.tool.id);
-
-  const outputPaths = (input.tool.supportsBatch ? input.files : input.files.slice(0, 1)).map((file) => {
-    const filename = buildOutputFilename({
-      toolId: input.tool.id,
-      outputExtension: input.tool.outputExtension,
-      inputFileNames: [file.name],
-    });
-
-    return `${outputDirectory}/${filename}`;
-  });
-
-  return {
-    ok: true,
-    outputPaths,
-    warning: "Running in browser fallback mode. No local engine execution occurred.",
-  };
+  try {
+    return await invoke<ToolCapability[]>("list_tool_capabilities");
+  } catch {
+    return fallbackToolCapabilities;
+  }
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+export async function getRuntimeDiagnostics(): Promise<RuntimeDiagnostics> {
+  const invoke = getInvoke();
+  if (!invoke) {
+    return {
+      runtime: "web",
+      invokeAvailable: false,
+      dialogPluginExpected: false,
+      engineProbeFetched: false,
+    };
+  }
+
+  try {
+    return await invoke<RuntimeDiagnostics>("get_runtime_diagnostics");
+  } catch {
+    return {
+      runtime: "desktop",
+      invokeAvailable: true,
+      dialogPluginExpected: true,
+      engineProbeFetched: false,
+    };
+  }
 }

@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
-import { icons } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  categoryBgClasses,
-  categoryTextClasses,
-} from "@/data/pdfTools";
+import { categoryBgClasses, categoryTextClasses } from "@/data/pdfTools";
 import { getToolStatusLabel, isToolRunnable } from "@/lib/toolRegistry";
+import { getToolIcon } from "@/lib/toolIcons";
+import { useEngines } from "@/providers/EngineProvider";
 import type { ToolDefinition } from "@/types/tools";
 
 interface ToolCardProps {
@@ -13,10 +11,13 @@ interface ToolCardProps {
 }
 
 const ToolCard = ({ tool }: ToolCardProps) => {
-  const IconComponent = icons[tool.icon as keyof typeof icons];
+  const IconComponent = getToolIcon(tool.icon);
   const bgClass = categoryBgClasses[tool.category];
   const textClass = categoryTextClasses[tool.category];
-  const runnable = isToolRunnable(tool);
+  const { isDesktop, engines, capabilities, loading } = useEngines();
+  const requiredEngine = engines.find((engine) => engine.key === tool.engine);
+  const capability = capabilities.find((candidate) => candidate.toolId === tool.id);
+  const runnable = isToolRunnable(tool) && isDesktop && !loading && Boolean(capability?.runnable);
   const statusLabel = getToolStatusLabel(tool.status);
 
   return (
@@ -40,11 +41,16 @@ const ToolCard = ({ tool }: ToolCardProps) => {
         </Badge>
         <div className="flex items-center gap-1.5">
           <Badge variant="secondary" className="text-[10px]">
-            Offline
+            {isDesktop ? "Desktop" : "Web preview"}
           </Badge>
           {tool.supportsBatch && (
             <Badge variant="secondary" className="text-[10px]">
               Batch
+            </Badge>
+          )}
+          {tool.supportsPreview && (
+            <Badge variant="secondary" className="text-[10px]">
+              Preview
             </Badge>
           )}
         </div>
@@ -62,12 +68,18 @@ const ToolCard = ({ tool }: ToolCardProps) => {
       </p>
 
       <p className="text-[11px] text-muted-foreground">
-        Input: {tool.inputExtensions.map((ext) => `.${ext}`).join(", ")} → Output: .{tool.outputExtension}
+        Input: {tool.inputExtensions.map((ext) => `.${ext}`).join(", ")} {"->"} Output: .{tool.outputExtension}
       </p>
 
       {!runnable && (
         <p className="mt-2 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-          Coming soon in a later implementation phase.
+          {!isToolRunnable(tool)
+            ? "Planned for a later implementation phase."
+            : !isDesktop
+              ? "Requires desktop runtime."
+              : loading
+                ? "Checking engine availability."
+                : (capability?.notes[0] ?? `Requires runnable engine: ${requiredEngine?.label ?? tool.engine}.`)}
         </p>
       )}
     </Link>

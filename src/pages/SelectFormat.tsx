@@ -1,11 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ArrowRight, FileText, icons } from "lucide-react";
+import { Archive, ArrowRight, FileIcon, FileSpreadsheet, FileText, Image, Presentation } from "lucide-react";
 import { getOutputFormats } from "@/lib/toolRegistry";
+import { useEngines } from "@/providers/EngineProvider";
+
+const formatIcons = {
+  Archive,
+  FileIcon,
+  FileSpreadsheet,
+  FileText,
+  Image,
+  Presentation,
+};
 
 const SelectFormat = () => {
   const navigate = useNavigate();
+  const { capabilities } = useEngines();
   const formats = getOutputFormats();
 
   const handleSelect = (formatId: string) => {
@@ -26,8 +37,11 @@ const SelectFormat = () => {
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 w-full max-w-5xl">
           {formats.map((fmt) => {
-            const Icon = icons[fmt.icon as keyof typeof icons] ?? FileText;
-            const disabled = fmt.availableCount === 0;
+            const Icon = formatIcons[fmt.icon as keyof typeof formatIcons] ?? FileText;
+            const implementedCount = capabilities.filter(
+              (capability) => capability.outputExtension === fmt.id && capability.implemented,
+            ).length;
+            const disabled = implementedCount === 0;
 
             return (
               <button
@@ -52,7 +66,7 @@ const SelectFormat = () => {
                   <div className="text-lg font-bold text-foreground">{fmt.label}</div>
                   <div className="text-sm text-muted-foreground">{fmt.description}</div>
                   <div className="mt-2 text-xs text-muted-foreground">
-                    {fmt.availableCount}/{fmt.toolCount} available now
+                    {implementedCount}/{fmt.toolCount} implemented
                   </div>
                   {disabled && (
                     <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">

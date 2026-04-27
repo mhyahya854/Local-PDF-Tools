@@ -1,23 +1,30 @@
 mod commands;
-mod engines;
 mod engine_registry;
+mod engines;
 mod errors;
+mod process_runner;
+mod redaction;
+mod tool_contract;
 mod types;
 mod workspace;
 
 use commands::jobs::{open_output_path, run_tool_job};
-use commands::tools::{list_supported_engines, validate_files, cleanup_tmp, list_persisted_jobs};
+use commands::tools::{
+    cleanup_tmp, get_runtime_diagnostics, list_persisted_jobs, list_supported_engines,
+    list_tool_capabilities,
+};
 
 pub fn run() {
-    // spawn a background cleanup of stale temporary workspaces so startup is tidy
     std::thread::spawn(|| {
         let _ = workspace::cleanup_stale_tmp(60 * 60 * 24 * 7);
     });
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             list_supported_engines,
-            validate_files,
+            list_tool_capabilities,
+            get_runtime_diagnostics,
             cleanup_tmp,
             list_persisted_jobs,
             run_tool_job,

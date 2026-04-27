@@ -1,12 +1,21 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { isDesktopRuntime, listSupportedEngines, listPersistedJobs } from "@/lib/backend";
-import type { EngineAvailability, JobRecord } from "@/types/tools";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  cleanupTmp,
+  getRuntimeDiagnostics,
+  isDesktopRuntime,
+  listPersistedJobs,
+  listSupportedEngines,
+  listToolCapabilities,
+} from "@/lib/backend";
+import type { EngineAvailability, RuntimeDiagnostics, ToolCapability } from "@/types/tools";
 import { useJobStore } from "@/stores/useJobStore";
 
 interface EngineContextValue {
   isDesktop: boolean;
   loading: boolean;
   engines: EngineAvailability[];
+  capabilities: ToolCapability[];
+  diagnostics: RuntimeDiagnostics;
   refresh: () => Promise<void>;
 }
 
@@ -17,66 +26,74 @@ interface EngineProviderProps {
 }
 
 export function EngineProvider({ children }: EngineProviderProps) {
-  const [engines, setEngines] = useState<EngineAvailability[]>([]);
-  const [loading, setLoading] = useState(true);
   const desktop = isDesktopRuntime();
+  const [engines, setEngines] = useState<EngineAvailability[]>([]);
+  const [capabilities, setCapabilities] = useState<ToolCapability[]>([]);
+  const [diagnostics, setDiagnostics] = useState<RuntimeDiagnostics>({
+    runtime: desktop ? "desktop" : "web",
+    invokeAvailable: desktop,
+    dialogPluginExpected: desktop,
+    engineProbeFetched: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const hydrateJobs = useJobStore((state) => state.hydrateJobs);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const availableEngines = await listSupportedEngines();
+      const [availableEngines, toolCapabilities, runtimeDiagnostics] = await Promise.all([
+        listSupportedEngines(),
+        listToolCapabilities(),
+        getRuntimeDiagnostics(),
+      ]);
       setEngines(availableEngines);
+      setCapabilities(toolCapabilities);
+      setDiagnostics(runtimeDiagnostics);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     void refresh();
 
-    // load persisted job history into the job store on startup
     (async () => {
       try {
+        await cleanupTmp();
         const persisted = await listPersistedJobs();
-        if (persisted && persisted.length > 0) {
-          const enqueue = useJobStore.getState().enqueueJob;
-          for (const job of persisted) {
-            // avoid duplicates
-            const exists = useJobStore.getState().jobs.find((j) => j.id === job.id);
-            if (!exists) {
-              enqueue({
-                id: job.id,
-                toolId: job.toolId,
-                toolName: job.toolName,
-                status: job.status as any,
-                progress: job.progress,
-                inputFiles: job.inputFiles,
-                outputFiles: job.outputFiles,
-                options: job.options || {},
-                createdAt: job.createdAt,
-                updatedAt: job.updatedAt,
-                error: job.error,
-              });
-            }
-          }
+        if (!cancelled && persisted.length > 0) {
+          hydrateJobs(persisted);
         }
       } catch {
-        // ignore load errors
+        // Ignore persisted-job load failures and continue startup.
       }
     })();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateJobs, refresh]);
 
   const value = useMemo(
     () => ({
       isDesktop: desktop,
       loading,
       engines,
+      capabilities,
+      diagnostics,
       refresh,
     }),
-    [desktop, loading, engines],
+    [desktop, engines, capabilities, diagnostics, loading, refresh],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
+}
+
+export function useToolCapability(toolId?: string) {
+  const { capabilities } = useEngines();
+  return capabilities.find((capability) => capability.toolId === toolId);
 }
 
 export function useEngines() {

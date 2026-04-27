@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ToolCard from "@/components/ToolCard";
+import { useEngines } from "@/providers/EngineProvider";
 import {
   filterTools,
   getOutputFormats,
@@ -20,25 +21,44 @@ const Tools = () => {
   const [category, setCategory] = useState<string>("all");
   const [status, setStatus] = useState<ToolStatus | "all">("all");
 
+  const { isDesktop, capabilities, loading } = useEngines();
   const output = searchParams.get("output");
   const outputFormats = getOutputFormats();
 
   const filtered = useMemo(() => {
     const outputTools = getToolsByOutput(output ?? undefined);
-    return filterTools(outputTools, {
+    const implementedTools = outputTools.filter((tool) =>
+      capabilities.some((capability) => capability.toolId === tool.id && capability.implemented),
+    );
+    return filterTools(implementedTools, {
       search,
       category,
       status,
     });
-  }, [output, search, category, status]);
+  }, [output, search, category, status, capabilities]);
 
   const categories = useMemo(
-    () => ["all", ...new Set(toolRegistry.map((tool) => tool.category))],
-    [],
+    () => [
+      "all",
+      ...new Set(
+        toolRegistry
+          .filter((tool) =>
+            capabilities.some((capability) => capability.toolId === tool.id && capability.implemented),
+          )
+          .map((tool) => tool.category),
+      ),
+    ],
+    [capabilities],
   );
 
   const outputLabel = outputFormats.find((fmt) => fmt.id === output)?.label;
   const heading = outputLabel ? `Tools that output ${outputLabel}` : "All PDF Tools";
+  const executableCount = filtered.filter((tool) => {
+    if (tool.status === "planned" || !isDesktop || loading) {
+      return false;
+    }
+    return Boolean(capabilities.find((capability) => capability.toolId === tool.id)?.runnable);
+  }).length;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -49,7 +69,7 @@ const Tools = () => {
           {heading}
         </h1>
         <p className="mb-8 text-center text-muted-foreground">
-          {filtered.length} tool{filtered.length !== 1 ? "s" : ""} available
+          {filtered.length} tool{filtered.length !== 1 ? "s" : ""} listed, {executableCount} executable in this runtime
         </p>
 
         <div className="mb-8 grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-3">
@@ -57,12 +77,14 @@ const Tools = () => {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search tools"
+            aria-label="Search tools"
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           />
 
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
+            aria-label="Filter tools by category"
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           >
             {categories.map((item) => (
@@ -75,6 +97,7 @@ const Tools = () => {
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as ToolStatus | "all")}
+            aria-label="Filter tools by status"
             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
           >
             {statusOptions.map((item) => (

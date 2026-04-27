@@ -30,4 +30,11 @@ describe("tool registry", () => {
       expect(Array.isArray(defaults)).toBe(false);
     }
   });
+
+  it("exposes rotate-pdf with a selectable angle schema", () => {
+    const rotateTool = toolRegistry.find((tool) => tool.id === "rotate-pdf");
+    expect(rotateTool).toBeDefined();
+    expect(rotateTool?.optionSchemaKey).toBe("rotatePdfOptions");
+    expect(getToolDefaultOptions(rotateTool)).toEqual({ angle: 90 });
+  });
 });

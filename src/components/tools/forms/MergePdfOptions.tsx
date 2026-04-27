@@ -1,10 +1,9 @@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import type { ToolOptions } from "@/types/tools";
 
-export interface MergePdfOptionsValue {
-  reorder: boolean;
+export interface MergePdfOptionsValue extends ToolOptions {
   reverse: boolean;
-  includeBookmarks: boolean;
 }
 
 interface MergePdfOptionsProps {
@@ -16,19 +15,9 @@ export default function MergePdfOptions({ value, onChange }: MergePdfOptionsProp
   return (
     <div className="space-y-4">
       <OptionSwitch
-        label="Allow page reordering"
-        checked={value.reorder}
-        onCheckedChange={(checked) => onChange({ ...value, reorder: checked })}
-      />
-      <OptionSwitch
         label="Reverse file order"
         checked={value.reverse}
         onCheckedChange={(checked) => onChange({ ...value, reverse: checked })}
-      />
-      <OptionSwitch
-        label="Include source bookmarks"
-        checked={value.includeBookmarks}
-        onCheckedChange={(checked) => onChange({ ...value, includeBookmarks: checked })}
       />
     </div>
   );

@@ -1,8 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import type { ToolOptions } from "@/types/tools";
 
-export interface ProtectPdfOptionsValue {
+export interface ProtectPdfOptionsValue extends ToolOptions {
   userPassword: string;
   ownerPassword: string;
   allowPrint: boolean;
@@ -24,7 +25,8 @@ export default function ProtectPdfOptions({ value, onChange }: ProtectPdfOptions
           type="password"
           value={value.userPassword}
           onChange={(event) => onChange({ ...value, userPassword: event.target.value })}
-          placeholder="Required to open file"
+          placeholder="Required to open the file"
+          autoComplete="new-password"
         />
       </div>
 
@@ -35,7 +37,8 @@ export default function ProtectPdfOptions({ value, onChange }: ProtectPdfOptions
           type="password"
           value={value.ownerPassword}
           onChange={(event) => onChange({ ...value, ownerPassword: event.target.value })}
-          placeholder="Controls print/copy permissions"
+          placeholder="Required and must differ from open password"
+          autoComplete="new-password"
         />
       </div>
 

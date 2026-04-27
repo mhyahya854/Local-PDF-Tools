@@ -64,7 +64,7 @@ const Footer = () => (
       </div>
 
       <div className="mt-10 border-t pt-6 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} PDF Powerhouse. All processing is local by design.
+        (c) {new Date().getFullYear()} PDF Powerhouse. All processing is local by design.
       </div>
     </div>
   </footer>
